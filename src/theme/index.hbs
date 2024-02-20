@@ -45,23 +45,27 @@
 
         <!-- Open Graph Meta Tags for Social Media Exposure -->
         {{#if is_frontmatter}}
-        <meta property="og:title" content="{{ og_title }}">
-        <meta property="og:description" content="{{ og_description }}">
-        <meta property="og:image" content="{{this.frontmatter.featured_image_url}}">
-        <meta property="og:url" content="{{ og_image_url}}">
+        <meta name="title" property="og:title" content="{{ og_title }}">
+        <meta name="description" property="og:description" content="{{ og_description }}">
         <meta name="twitter:title" content="{{ og_title }}"/>
         <meta name="twitter:description" content="{{ og_description }}"/>
-        <meta name="twitter:image" content="{{ og_image_url }}"/>
+        <!-- <meta property="og:url" content="{{ base_url}}"> -->
         {{else}}
-        <meta property="og:title" content="mdBook Documentation">
-        <meta property="og:description" content="Create book from markdown files. Like Gitbook but implemented in Rust">
-        <meta property="og:image" content="https://rust-lang.github.io/mdBook/favicon.png">
-        <meta property="og:url" content="https://rust-lang.github.io/mdBook/">
+        <meta name="title" property="og:title" content="mdBook Documentation">
+        <meta name="description" property="og:description" content="Create book from markdown files. Like Gitbook but implemented in Rust">
+        <!-- <meta property="og:url" content="https://www.dedp.online"> -->
         <meta name="twitter:title" content="mdBook Documentation"/>
-        <meta name="twitter:image" content="https://rust-lang.github.io/mdBook/favicon.png"/>
         <meta name="twitter:description" content="Create book from markdown files. Like Gitbook but implemented in Rust"/>
         {{/if}}
-        <meta name="author" content="dBook">
+        {{#if og_image_url}}
+        <meta property="og:image" content="{{ og_image_url }}">
+        <meta name="twitter:image" content="{{ og_image_url }}"/>
+        {{else}}
+        <meta property="og:image" content="https://rust-lang.github.io/mdBook/favicon.png">
+        <meta name="twitter:image" content="https://rust-lang.github.io/mdBook/favicon.png"/>
+        {{/if}}
+
+        <meta name="author" content="mdBook">
         <meta property="og:type" content="book">
         <meta name="twitter:card" content="summary_large_image"/>
         <meta name="twitter:creator" content="@rustlang"/>
