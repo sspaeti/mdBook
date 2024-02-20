@@ -76,7 +76,7 @@ impl HtmlHandlebars {
         let parsed = matter.parse(&ch.content);
         let (content, new_content) = if let Some(data) = parsed.data {
 
-            eprintln!("DEBUG11: Parsed frontmatter: {:?}", &data);
+            debug!("Parsed frontmatter: {:?}", &data);
             let yaml_str = extract_frontmatter(&ch.content).unwrap_or_default();
             let front_matter_result: Result<FrontMatter, serde_yaml::Error> = serde_yaml::from_str(yaml_str); 
             // let front_matter_result: Result<FrontMatter, serde_yaml::Error> = serde_yaml::from_str(&ch.content);
@@ -88,7 +88,7 @@ impl HtmlHandlebars {
                             ctx.data.insert("og_image_url".to_owned(), json!(front_matter.featured_image_url));
                 },
                 Err(e) => {
-                    eprintln!("Deserialization error: {:?}", e);
+                    eprintln!("Frontmatter: Deserialization error: {:?}", e);
                 },
             }
 
