@@ -72,12 +72,136 @@ pub(crate) fn strip_frontmatter(content: &str) -> String {
     }
 }
 
+/// Counts words in markdown content, stripping frontmatter, code blocks,
+/// HTML tags, URLs, and markdown syntax to match Obsidian's word count.
+fn count_words(content: &str) -> usize {
+    let stripped = strip_frontmatter(content);
+    let mut result = String::with_capacity(stripped.len());
+    let mut in_code_block = false;
+
+    for line in stripped.lines() {
+        let trimmed = line.trim();
+
+        // Toggle fenced code blocks (``` or ~~~)
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_code_block = !in_code_block;
+            continue;
+        }
+        if in_code_block {
+            continue;
+        }
+
+        // Skip admonish/callout block markers
+        if trimmed.starts_with("```admonish") {
+            continue;
+        }
+
+        // Skip HTML tags (standalone lines like <div>, <!-- -->, etc.)
+        if trimmed.starts_with('<') && trimmed.ends_with('>') {
+            continue;
+        }
+
+        result.push(' ');
+        result.push_str(line);
+    }
+
+    // Remove inline markdown syntax:
+    // - URLs from [text](url) -> keep "text"
+    // - Image syntax ![alt](url) -> skip entirely
+    // - HTML tags <...>
+    // - Bold/italic markers
+    let mut clean = result.clone();
+
+    // Remove images ![alt](url)
+    while let Some(start) = clean.find("![") {
+        if let Some(paren_start) = clean[start..].find("](") {
+            if let Some(paren_end) = clean[start + paren_start..].find(')') {
+                clean.replace_range(start..start + paren_start + paren_end + 1, "");
+                continue;
+            }
+        }
+        break;
+    }
+
+    // Replace [text](url) with just "text"
+    let mut out = String::with_capacity(clean.len());
+    let mut chars = clean.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '[' {
+            // Collect link text
+            let mut link_text = String::new();
+            let mut found_close = false;
+            for ch in chars.by_ref() {
+                if ch == ']' {
+                    found_close = true;
+                    break;
+                }
+                link_text.push(ch);
+            }
+            if found_close && chars.peek() == Some(&'(') {
+                chars.next(); // skip '('
+                // Skip URL until ')'
+                for ch in chars.by_ref() {
+                    if ch == ')' {
+                        break;
+                    }
+                }
+                out.push_str(&link_text);
+            } else {
+                out.push('[');
+                out.push_str(&link_text);
+                if found_close {
+                    out.push(']');
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+
+    // Remove HTML tags
+    let mut no_html = String::with_capacity(out.len());
+    let mut in_tag = false;
+    for c in out.chars() {
+        if c == '<' {
+            in_tag = true;
+        } else if c == '>' {
+            in_tag = false;
+            no_html.push(' ');
+        } else if !in_tag {
+            no_html.push(c);
+        }
+    }
+
+    no_html.split_whitespace()
+        .filter(|word| {
+            // Skip pure markdown syntax tokens
+            if matches!(*word, "#" | "##" | "###" | "####" | "#####" | "######"
+                | "---" | "***" | "___" | "-" | "*" | ">" | "|" | "```") {
+                return false;
+            }
+            // Skip words that are just punctuation/symbols
+            if word.chars().all(|c| matches!(c, '*' | '_' | '~' | '`' | '|' | '-')) {
+                return false;
+            }
+            true
+        })
+        .count()
+}
+
 /// Parses YAML frontmatter from content and injects metadata
 /// into the Handlebars template context data map.
+/// Also calculates word count and reading time (at 212 wpm, matching Hugo).
 pub(crate) fn inject_frontmatter_data(
     content: &str,
     data: &mut serde_json::Map<String, serde_json::Value>,
 ) {
+    // Always inject word count and reading time
+    let word_count = count_words(content);
+    let reading_time = (word_count as f64 / 212.0).ceil() as usize;
+    data.insert("word_count".to_owned(), json!(word_count));
+    data.insert("reading_time".to_owned(), json!(reading_time));
+
     let trimmed = content.trim_start();
     if !trimmed.starts_with("---") {
         return;
@@ -191,6 +315,34 @@ mod tests {
         assert_eq!(data["has_dates"], json!(true));
         assert_eq!(data["createddate_display"], json!("Jan 1, 2023"));
         assert_eq!(data["lastmod_display"], json!("Dec 25, 2025"));
+    }
+
+    #[test]
+    fn test_word_count_and_reading_time() {
+        let input = "---\ntitle: \"Test\"\n---\n# Hello\n\nThis is a simple paragraph with some words in it.";
+        let mut data = serde_json::Map::new();
+        inject_frontmatter_data(input, &mut data);
+        // "Hello This is a simple paragraph with some words in it." = 11 words (# is filtered)
+        assert_eq!(data["word_count"], json!(11));
+        assert_eq!(data["reading_time"], json!(1)); // ceil(11/212) = 1
+    }
+
+    #[test]
+    fn test_word_count_no_frontmatter() {
+        let input = "# Just content\n\nSome words here.";
+        let mut data = serde_json::Map::new();
+        inject_frontmatter_data(input, &mut data);
+        // "Just content Some words here." = 5 words (# is filtered)
+        assert_eq!(data["word_count"], json!(5));
+        assert_eq!(data["reading_time"], json!(1));
+    }
+
+    #[test]
+    fn test_word_count_skips_code_blocks_and_urls() {
+        let input = "# Title\n\nSome text with a [link](https://example.com) here.\n\n```python\ndef foo():\n    return 42\n```\n\nMore words after code.";
+        // Should count: Title Some text with a link here. More words after code. = 11
+        // Should NOT count: code block contents, URL
+        assert_eq!(count_words(input), 11);
     }
 
     #[test]
