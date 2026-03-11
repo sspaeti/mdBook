@@ -191,16 +191,20 @@ fn count_words(content: &str) -> usize {
 
 /// Parses YAML frontmatter from content and injects metadata
 /// into the Handlebars template context data map.
-/// Also calculates word count and reading time (at 212 wpm, matching Hugo).
+/// When `enable_word_count` is true, also calculates word count and
+/// reading time (at 212 wpm, matching Hugo).
 pub(crate) fn inject_frontmatter_data(
     content: &str,
     data: &mut serde_json::Map<String, serde_json::Value>,
+    enable_word_count: bool,
 ) {
-    // Always inject word count and reading time
-    let word_count = count_words(content);
-    let reading_time = (word_count as f64 / 212.0).ceil() as usize;
-    data.insert("word_count".to_owned(), json!(word_count));
-    data.insert("reading_time".to_owned(), json!(reading_time));
+    // Inject word count and reading time if enabled
+    if enable_word_count {
+        let word_count = count_words(content);
+        let reading_time = (word_count as f64 / 212.0).ceil() as usize;
+        data.insert("word_count".to_owned(), json!(word_count));
+        data.insert("reading_time".to_owned(), json!(reading_time));
+    }
 
     let trimmed = content.trim_start();
     if !trimmed.starts_with("---") {
@@ -275,7 +279,7 @@ mod tests {
     fn test_inject_frontmatter_data() {
         let input = "---\ntitle: \"My Title\"\ndescription: \"My Desc\"\nfeatured_image_url: \"https://example.com/img.png\"\n---\n# Content";
         let mut data = serde_json::Map::new();
-        inject_frontmatter_data(input, &mut data);
+        inject_frontmatter_data(input, &mut data, true);
         assert_eq!(data["is_frontmatter"], json!(true));
         assert_eq!(data["og_title"], json!("My Title"));
         assert_eq!(data["og_description"], json!("My Desc"));
@@ -286,7 +290,7 @@ mod tests {
     fn test_inject_no_frontmatter() {
         let input = "# Just content";
         let mut data = serde_json::Map::new();
-        inject_frontmatter_data(input, &mut data);
+        inject_frontmatter_data(input, &mut data, true);
         assert!(!data.contains_key("is_frontmatter"));
     }
 
@@ -294,7 +298,7 @@ mod tests {
     fn test_inject_dates_only() {
         let input = "---\ncreateddate: \"2024-03-15\"\nlastmod: \"2025-09-12\"\n---\n# Content";
         let mut data = serde_json::Map::new();
-        inject_frontmatter_data(input, &mut data);
+        inject_frontmatter_data(input, &mut data, true);
         // No OG fields -> is_frontmatter should NOT be set
         assert!(!data.contains_key("is_frontmatter"));
         // Dates should be set
@@ -309,7 +313,7 @@ mod tests {
     fn test_inject_full_frontmatter_with_dates() {
         let input = "---\ntitle: \"My Title\"\ndescription: \"Desc\"\nfeatured_image_url: \"https://img.png\"\ncreateddate: \"2023-01-01\"\nlastmod: \"2025-12-25\"\n---\n# Content";
         let mut data = serde_json::Map::new();
-        inject_frontmatter_data(input, &mut data);
+        inject_frontmatter_data(input, &mut data, true);
         assert_eq!(data["is_frontmatter"], json!(true));
         assert_eq!(data["og_title"], json!("My Title"));
         assert_eq!(data["has_dates"], json!(true));
@@ -321,7 +325,7 @@ mod tests {
     fn test_word_count_and_reading_time() {
         let input = "---\ntitle: \"Test\"\n---\n# Hello\n\nThis is a simple paragraph with some words in it.";
         let mut data = serde_json::Map::new();
-        inject_frontmatter_data(input, &mut data);
+        inject_frontmatter_data(input, &mut data, true);
         // "Hello This is a simple paragraph with some words in it." = 11 words (# is filtered)
         assert_eq!(data["word_count"], json!(11));
         assert_eq!(data["reading_time"], json!(1)); // ceil(11/212) = 1
@@ -331,7 +335,7 @@ mod tests {
     fn test_word_count_no_frontmatter() {
         let input = "# Just content\n\nSome words here.";
         let mut data = serde_json::Map::new();
-        inject_frontmatter_data(input, &mut data);
+        inject_frontmatter_data(input, &mut data, true);
         // "Just content Some words here." = 5 words (# is filtered)
         assert_eq!(data["word_count"], json!(5));
         assert_eq!(data["reading_time"], json!(1));

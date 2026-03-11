@@ -117,7 +117,11 @@ impl HtmlHandlebars {
 
         // Inject frontmatter OG metadata into template context
         #[cfg(feature = "frontmatter")]
-        crate::frontmatter::inject_frontmatter_data(&ch.content, &mut ctx.data);
+        crate::frontmatter::inject_frontmatter_data(
+            &ch.content,
+            &mut ctx.data,
+            ctx.html_config.word_count,
+        );
 
         // Render the handlebars template with the data
         debug!("Render template");

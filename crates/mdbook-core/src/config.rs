@@ -518,6 +518,9 @@ pub struct HtmlConfig {
     /// If enabled, the sidebar includes navigation for headers on the current
     /// page. Default is `true`.
     pub sidebar_header_nav: bool,
+    /// If enabled, displays word count and estimated reading time per chapter.
+    /// Default is `false`.
+    pub word_count: bool,
 }
 
 impl Default for HtmlConfig {
@@ -548,6 +551,7 @@ impl Default for HtmlConfig {
             redirect: HashMap::new(),
             hash_files: true,
             sidebar_header_nav: true,
+            word_count: false,
         }
     }
 }
