@@ -22,6 +22,13 @@ pub(crate) struct FrontMatter {
     pub createddate: Option<String>,
     /// Last modified date in YYYY-MM-DD format.
     pub lastmod: Option<String>,
+    /// Set `toc: false` to hide the in-page table of contents
+    /// (the template adds `class="no-pagetoc"` to `<body>`).
+    pub toc: Option<bool>,
+    /// Optional page-scoped stylesheet, relative to the book root
+    /// (e.g. `css/landing.css`). The file must live under `src/` so
+    /// mdBook copies it to the output.
+    pub css: Option<String>,
 }
 
 /// Formats a "YYYY-MM-DD" date string into human-readable "Mon DD, YYYY" format.
@@ -252,6 +259,14 @@ pub(crate) fn inject_frontmatter_data(
                     data.insert("lastmod_display".to_owned(), json!(display));
                 }
             }
+
+            // Page layout switches
+            if fm.toc == Some(false) {
+                data.insert("hide_toc".to_owned(), json!(true));
+            }
+            if let Some(css) = fm.css.as_deref().map(str::trim).filter(|c| !c.is_empty()) {
+                data.insert("page_css".to_owned(), json!(css));
+            }
         }
         Err(e) => {
             eprintln!("Frontmatter: deserialization error: {e:?}");
@@ -262,6 +277,24 @@ pub(crate) fn inject_frontmatter_data(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_inject_toc_and_css() {
+        let input = "---\ntitle: \"T\"\ntoc: false\ncss: \"css/landing.css\"\n---\n# Content";
+        let mut data = serde_json::Map::new();
+        inject_frontmatter_data(input, &mut data, false);
+        assert_eq!(data["hide_toc"], json!(true));
+        assert_eq!(data["page_css"], json!("css/landing.css"));
+    }
+
+    #[test]
+    fn test_inject_toc_default_keeps_toc() {
+        let input = "---\ntitle: \"T\"\n---\n# Content";
+        let mut data = serde_json::Map::new();
+        inject_frontmatter_data(input, &mut data, false);
+        assert!(!data.contains_key("hide_toc"));
+        assert!(!data.contains_key("page_css"));
+    }
 
     #[test]
     fn test_strip_frontmatter() {
